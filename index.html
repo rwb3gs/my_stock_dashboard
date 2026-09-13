@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bin | 金融與存股 數據中心</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background-color: #0f172a; color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .card-bg { background-color: #1e293b; border: 1px solid #334155; }
+    
+    /* 類別標籤顏色 */
+    .tag-finance { background-color: #064e3b; color: #34d399; border: 1px solid #059669; } /* 金融股：翡翠綠 */
+    .tag-other { background-color: #1e3a8a; color: #60a5fa; border: 1px solid #2563eb; }   /* 其他個股：湛藍色 */
+
+    /* 頁籤按鈕樣式 */
+    .tab-btn { padding: 8px 16px; font-weight: 600; border-radius: 8px; font-size: 14px; transition: all 0.2s; }
+    .tab-active { background-color: #10b981; color: #022c22; }
+    .tab-inactive { background-color: #334155; color: #94a3b8; }
+    .tab-inactive:hover { background-color: #475569; color: #f8fafc; }
+
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+  </style>
+</head>
+<body class="p-4 md:p-8">
+
+  <div class="max-w-7xl mx-auto mb-6">
+    <!-- 頂部 Header -->
+    <div class="flex items-center space-x-3 mb-6">
+      <div class="w-8 h-8 rounded bg-emerald-500 flex items-center justify-center font-bold text-slate-900">📊</div>
+      <h1 class="text-2xl md:text-3xl font-bold tracking-wide">
+        <span class="text-emerald-400">Bin</span> <span class="text-slate-400">|</span> 金融與存股 數據中心
+      </h1>
+    </div>
+
+    <!-- 搜尋列與頁籤切換 -->
+    <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+      <div class="flex flex-wrap gap-3">
+        <input type="text" id="searchInput" oninput="renderTable()" placeholder="搜尋代碼或名稱..." 
+          class="bg-slate-800 border border-slate-700 text-white text-sm rounded-lg p-2.5 w-full sm:w-64 focus:outline-none focus:border-emerald-500">
+        
+        <select id="categoryFilter" onchange="renderTable()" 
+          class="bg-slate-800 border border-slate-700 text-white text-sm rounded-lg p-2.5 focus:outline-none focus:border-emerald-500">
+          <option value="ALL">所有類別</option>
+          <option value="金融股">金融股</option>
+          <option value="其他個股">其他個股</option>
+        </select>
+      </div>
+
+      <!-- 顯示群組切換頁籤 -->
+      <div class="flex space-x-2 bg-slate-900 p-1 rounded-xl border border-slate-800">
+        <button id="tab1" onclick="switchTab(1)" class="tab-btn tab-active">💰 股利與獲利觀點</button>
+        <button id="tab2" onclick="switchTab(2)" class="tab-btn tab-inactive">📈 估值與位階觀點</button>
+      </div>
+    </div>
+
+    <!-- 表格區塊 -->
+    <div class="card-bg rounded-xl shadow-xl overflow-x-auto">
+      <table class="w-full text-sm text-left text-slate-300 border-collapse">
+        <thead id="tableHead" class="text-xs uppercase bg-slate-900/90 text-slate-400 border-b border-slate-700 whitespace-nowrap">
+          <!-- 表頭由 JS 動態生成 -->
+        </thead>
+        <tbody id="stockTableBody">
+          <tr>
+            <td colspan="12" class="text-center py-8 text-slate-500">資料載入中...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = "https://sktrmemtvarutrbcpwij.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_iPdnGKeCEfPuH2xZBYK4Sg_G8ivGx1p";
+    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let stockDataList = [];
+    let currentTab = 1; // 1: 股利與獲利, 2: 估值與位階
+
+    // 格式化數字 (取小數點 2 位，用於股淨比等)
+    function formatNumber(val, decimals = 2) {
+      if (val === null || val === undefined || val === '' || val === '--') return '--';
+      let num = parseFloat(val);
+      if (isNaN(num)) return val;
+      return num.toFixed(decimals);
+    }
+
+    // 格式化百分比 (可選擇是否顯示正負號)
+    function formatPercent(val, showSign = false) {
+      if (val === null || val === undefined || val === '' || val === '--') return '--';
+      let num = parseFloat(val);
+      if (isNaN(num)) return val;
+      if (Math.abs(num) < 1 && num !== 0) num = num * 100;
+      let formatted = num.toFixed(2) + '%';
+      if (showSign && num > 0) formatted = '+' + formatted;
+      return formatted;
+    }
+
+    // 格式化日期
+    function formatDate(dateStr) {
+      if (!dateStr || dateStr === '--') return '--';
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    // 取得漲跌色彩 (正數紅、負數綠)
+    function getTrendColorClass(formattedStr) {
+      if (formattedStr.includes('+')) return "text-rose-400 font-semibold";
+      if (formattedStr.includes('-')) return "text-emerald-400 font-semibold";
+      return "text-slate-300";
+    }
+
+    async function fetchStockData() {
+      try {
+        const { data, error } = await _supabase
+          .from('stock_data')
+          .select('*')
+          .order('symbol', { ascending: true });
+
+        if (error) throw error;
+        stockDataList = data;
+        renderTable();
+      } catch (err) {
+        console.error("載入失敗:", err);
+      }
+    }
+
+    function switchTab(tabNum) {
+      currentTab = tabNum;
+      document.getElementById('tab1').className = `tab-btn ${tabNum === 1 ? 'tab-active' : 'tab-inactive'}`;
+      document.getElementById('tab2').className = `tab-btn ${tabNum === 2 ? 'tab-active' : 'tab-inactive'}`;
+      renderTable();
+    }
+
+    function renderTable() {
+        const search = document.getElementById('searchInput').value.toLowerCase().trim();
+        const category = document.getElementById('categoryFilter').value;
+
+        const filtered = stockDataList.filter(item => {
+          const matchSearch = item.symbol.toLowerCase().includes(search) || item.name.toLowerCase().includes(search);
+          const matchCat = category === 'ALL' || item.category === category;
+          return matchSearch && matchCat;
+        });
+
+        // 1. 動態表頭
+        const thead = document.getElementById('tableHead');
+        if (currentTab === 1) {
+          thead.innerHTML = `
+            <tr>
+              <th class="px-4 py-3.5">代碼</th>
+              <th class="px-4 py-3.5">名稱</th>
+              <th class="px-4 py-3.5">現價</th>
+              <th class="px-4 py-3.5">現金股利</th>
+              <th class="px-4 py-3.5">股票股利</th>
+              <th class="px-4 py-3.5">現金殖利率</th>
+              <th class="px-4 py-3.5">還原殖利率</th>
+              <th class="px-4 py-3.5">年報酬率</th>
+              <th class="px-4 py-3.5">去年度EPS</th>
+              <th class="px-4 py-3.5">近四季EPS</th>
+              <th class="px-4 py-3.5">除息日期</th>
+              <th class="px-4 py-3.5">發放日</th>
+              <th class="px-4 py-3.5">類別</th>
+            </tr>`;
+        } else {
+          thead.innerHTML = `
+            <tr>
+              <th class="px-4 py-3.5">代碼</th>
+              <th class="px-4 py-3.5">名稱</th>
+              <th class="px-4 py-3.5">現價</th>
+              <th class="px-4 py-3.5">240MA年線</th>
+              <th class="px-4 py-3.5">年線乖離率</th>
+              <th class="px-4 py-3.5">最新淨值</th>
+              <th class="px-4 py-3.5">股淨比</th>
+              <th class="px-4 py-3.5">本益比</th>
+              <th class="px-4 py-3.5">股本(億)</th>
+              <th class="px-4 py-3.5">市值(億)</th>
+              <th class="px-4 py-3.5">除息週期</th>
+              <th class="px-4 py-3.5">類別</th>
+            </tr>`;
+        }
+
+        const tbody = document.getElementById('stockTableBody');
+        if (filtered.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="13" class="text-center py-8 text-slate-500">查無符合資料</td></tr>`;
+          return;
+        }
+
+        // 2. 渲染內容
+        tbody.innerHTML = filtered.map(item => {
+          const isFinance = item.category === '金融股';
+          const tagClass = isFinance ? 'tag-finance' : 'tag-other';
+
+          // 計算乖離率與年報酬率 (帶正負號與自動紅綠色彩)
+          const formattedBias = formatPercent(item.annual_bias, true);
+          const biasColorClass = getTrendColorClass(formattedBias);
+
+          const formattedYield = formatPercent(item.annual_yield, true);
+          const yieldColorClass = getTrendColorClass(formattedYield);
+
+          if (currentTab === 1) {
+            return `
+              <tr class="border-b border-slate-800 hover:bg-slate-800/50 transition-colors whitespace-nowrap">
+                <td class="px-4 py-3 font-bold text-white">${item.symbol || '--'}</td>
+                <td class="px-4 py-3 text-slate-200 font-medium">${item.name || '--'}</td>
+                <td class="px-4 py-3 font-semibold text-white">${item.price || '--'}</td>
+                <td class="px-4 py-3 text-amber-300">${item.cash_div || '0'}</td>
+                <td class="px-4 py-3 text-amber-300">${item.stock_div || '0'}</td>
+                <td class="px-4 py-3 text-blue-300">${formatPercent(item.cash_yield)}</td>
+                <td class="px-4 py-3 text-blue-300">${formatPercent(item.total_yield)}</td>
+                <td class="px-4 py-3 ${yieldColorClass}">${formattedYield}</td>
+                <td class="px-4 py-3">${item.eps_last_year || '--'}</td>
+                <td class="px-4 py-3 font-semibold text-blue-300">${item.eps_4q || '--'}</td>
+                <td class="px-4 py-3 text-slate-400">${formatDate(item.ex_div_date)}</td>
+                <td class="px-4 py-3 text-slate-400">${formatDate(item.pay_date)}</td>
+                <td class="px-4 py-3">
+                  <span class="px-2.5 py-1 text-xs rounded-full font-medium inline-block ${tagClass}">
+                    ${item.category || '個股'}
+                  </span>
+                </td>
+              </tr>`;
+          } else {
+            return `
+              <tr class="border-b border-slate-800 hover:bg-slate-800/50 transition-colors whitespace-nowrap">
+                <td class="px-4 py-3 font-bold text-white">${item.symbol || '--'}</td>
+                <td class="px-4 py-3 text-slate-200 font-medium">${item.name || '--'}</td>
+                <td class="px-4 py-3 font-semibold text-white">${item.price || '--'}</td>
+                <td class="px-4 py-3 text-slate-300">${item.ma240 || '--'}</td>
+                <td class="px-4 py-3 ${biasColorClass}">${formattedBias}</td>
+                <td class="px-4 py-3">${item.nav || '--'}</td>
+                <td class="px-4 py-3 font-medium text-purple-300">${formatNumber(item.pb, 2)}</td>
+                <td class="px-4 py-3 text-purple-300">${formatNumber(item.pe, 2)}</td>
+                <td class="px-4 py-3">${formatNumber(item.capital, 2)}</td>
+                <td class="px-4 py-3">${formatNumber(item.market_cap, 2)}</td>
+                <td class="px-4 py-3 text-slate-400">${item.frequency || '--'}</td>
+                <td class="px-4 py-3">
+                  <span class="px-2.5 py-1 text-xs rounded-full font-medium inline-block ${tagClass}">
+                    ${item.category || '個股'}
+                  </span>
+                </td>
+              </tr>`;
+          }
+        }).join('');
+      }
+
+    fetchStockData();
+  </script>
+</body>
+</html>
