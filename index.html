@@ -87,13 +87,20 @@
       return num.toFixed(decimals);
     }
 
+    // 修正後的格式化百分比函式
     function formatPercent(val, showSign = false) {
       if (val === null || val === undefined || val === '' || val === '--') return '--';
       let num = parseFloat(val);
       if (isNaN(num)) return val;
-      if (Math.abs(num) < 1 && num !== 0) num = num * 100;
+      
+      // 資料庫存的都是小數 (例如 0.72 代表 72%, 1.49 代表 149%)
+      // 直接一律乘以 100 轉為百分比
+      num = num * 100;
+      
       let formatted = num.toFixed(2) + '%';
-      if (showSign && num > 0) formatted = '+' + formatted;
+      if (showSign && num > 0) {
+        formatted = '+' + formatted;
+      }
       return formatted;
     }
 
