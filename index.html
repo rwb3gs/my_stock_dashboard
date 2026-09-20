@@ -45,6 +45,7 @@
         <select id="categoryFilter" onchange="renderTable()" 
           class="bg-slate-800 border border-slate-700 text-white text-sm rounded-lg p-2.5 focus:outline-none focus:border-emerald-500">
           <option value="ALL">所有類別</option>
+          <option value="FAVORITE">⭐ 我的最愛</option>
           <option value="金融股">金融股</option>
           <option value="其他個股">其他個股</option>
         </select>
@@ -65,7 +66,7 @@
         </thead>
         <tbody id="stockTableBody">
           <tr>
-            <td colspan="13" class="text-center py-8 text-slate-500">資料載入中...</td>
+            <td colspan="14" class="text-center py-8 text-slate-500">資料載入中...</td>
           </tr>
         </tbody>
       </table>
@@ -79,6 +80,21 @@
 
     let stockDataList = [];
     let currentTab = 1;
+
+    // 從 localStorage 讀取我的最愛清單 (陣列形式存放 symbol)
+    let favorites = JSON.parse(localStorage.getItem('stock_favorites')) || [];
+
+    // 切換/開關最愛狀態
+    function toggleFavorite(symbol) {
+      const index = favorites.indexOf(symbol);
+      if (index > -1) {
+        favorites.splice(index, 1); // 移除最愛
+      } else {
+        favorites.push(symbol);    // 加入最愛
+      }
+      localStorage.setItem('stock_favorites', JSON.stringify(favorites));
+      renderTable(); // 重新渲染表格
+    }
 
     function formatNumber(val, decimals = 2) {
       if (val === null || val === undefined || val === '' || val === '--') return '--';
@@ -143,19 +159,33 @@
 
       const filtered = stockDataList.filter(item => {
         const matchSearch = item.symbol.toLowerCase().includes(search) || item.name.toLowerCase().includes(search);
-        const matchCat = category === 'ALL' || item.category === category;
+        
+        let matchCat = false;
+        if (category === 'ALL') {
+          matchCat = true;
+        } else if (category === 'FAVORITE') {
+          matchCat = favorites.includes(item.symbol); // 僅顯示最愛
+        } else {
+          matchCat = item.category === category;
+        }
+
         return matchSearch && matchCat;
       });
 
-      // 調整第一欄寬度為 6.5em，並使用 px-2 減少左右留白
-      const stickyCol1Header = "sticky left-0 z-20 bg-slate-900 border-r border-slate-800 shadow-[2px_0_5px_rgba(0,0,0,0.3)] w-[4.8em] max-w-[4.8em] min-w-[4.8em] px-2 truncate";
-      const stickyCol1Body = "sticky left-0 z-10 bg-slate-900 border-r border-slate-800 shadow-[2px_0_5px_rgba(0,0,0,0.3)] w-[4.8em] max-w-[4.8em] min-w-[4.8em] px-2 truncate";
+      // 鎖定第 1 欄 (最愛)：寬度 3em
+      const stickyCol0Header = "sticky left-0 z-20 bg-slate-900 border-r border-slate-800 shadow-[2px_0_5px_rgba(0,0,0,0.3)] w-[3em] min-w-[3em] text-center";
+      const stickyCol0Body = "sticky left-0 z-10 bg-slate-900 border-r border-slate-800 shadow-[2px_0_5px_rgba(0,0,0,0.3)] w-[3em] min-w-[3em] text-center";
+
+      // 鎖定第 2 欄 (名稱)：位移 left-[3em]，寬度 6.5em
+      const stickyCol1Header = "sticky left-[3em] z-20 bg-slate-900 border-r border-slate-800 shadow-[2px_0_5px_rgba(0,0,0,0.3)] w-[6.5em] max-w-[6.5em] min-w-[6.5em] px-2 truncate";
+      const stickyCol1Body = "sticky left-[3em] z-10 bg-slate-900 border-r border-slate-800 shadow-[2px_0_5px_rgba(0,0,0,0.3)] w-[6.5em] max-w-[6.5em] min-w-[6.5em] px-2 truncate";
 
       // 1. 動態表頭
       const thead = document.getElementById('tableHead');
       if (currentTab === 1) {
         thead.innerHTML = `
           <tr>
+            <th class="py-3.5 ${stickyCol0Header}">最愛</th>
             <th class="py-3.5 ${stickyCol1Header}">名稱</th>
             <th class="px-4 py-3.5">代碼</th>
             <th class="px-4 py-3.5">現價</th>
@@ -173,6 +203,7 @@
       } else {
         thead.innerHTML = `
           <tr>
+            <th class="py-3.5 ${stickyCol0Header}">最愛</th>
             <th class="py-3.5 ${stickyCol1Header}">名稱</th>
             <th class="px-4 py-3.5">代碼</th>
             <th class="px-4 py-3.5">現價</th>
@@ -190,7 +221,7 @@
 
       const tbody = document.getElementById('stockTableBody');
       if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="13" class="text-center py-8 text-slate-500">查無符合資料</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="14" class="text-center py-8 text-slate-500">查無符合資料</td></tr>`;
         return;
       }
 
@@ -206,10 +237,18 @@
         const yieldColorClass = getTrendColorClass(formattedYield);
 
         const stockName = item.name || '--';
+        const isFav = favorites.includes(item.symbol);
+        const starIcon = isFav ? '⭐' : '☆';
+        const starClass = isFav ? 'text-amber-400 scale-110' : 'text-slate-600 hover:text-amber-300';
 
         if (currentTab === 1) {
           return `
             <tr class="border-b border-slate-800 hover:bg-slate-800/50 transition-colors whitespace-nowrap">
+              <td class="py-3 ${stickyCol0Body}">
+                <button onclick="toggleFavorite('${item.symbol}')" class="text-base transition-transform active:scale-125 ${starClass}" title="${isFav ? '取消最愛' : '加入最愛'}">
+                  ${starIcon}
+                </button>
+              </td>
               <td class="py-3 font-medium text-slate-200 ${stickyCol1Body}" title="${stockName}">${stockName}</td>
               <td class="px-4 py-3 font-bold text-white">${item.symbol || '--'}</td>
               <td class="px-4 py-3 font-semibold text-white">${item.price || '--'}</td>
@@ -231,6 +270,11 @@
         } else {
           return `
             <tr class="border-b border-slate-800 hover:bg-slate-800/50 transition-colors whitespace-nowrap">
+              <td class="py-3 ${stickyCol0Body}">
+                <button onclick="toggleFavorite('${item.symbol}')" class="text-base transition-transform active:scale-125 ${starClass}" title="${isFav ? '取消最愛' : '加入最愛'}">
+                  ${starIcon}
+                </button>
+              </td>
               <td class="py-3 font-medium text-slate-200 ${stickyCol1Body}" title="${stockName}">${stockName}</td>
               <td class="px-4 py-3 font-bold text-white">${item.symbol || '--'}</td>
               <td class="px-4 py-3 font-semibold text-white">${item.price || '--'}</td>
