@@ -87,14 +87,12 @@
       return num.toFixed(decimals);
     }
 
-    // 修正後的格式化百分比函式
+    // 格式化百分比函式
     function formatPercent(val, showSign = false) {
       if (val === null || val === undefined || val === '' || val === '--') return '--';
       let num = parseFloat(val);
       if (isNaN(num)) return val;
       
-      // 資料庫存的都是小數 (例如 0.72 代表 72%, 1.49 代表 149%)
-      // 直接一律乘以 100 轉為百分比
       num = num * 100;
       
       let formatted = num.toFixed(2) + '%';
@@ -149,17 +147,17 @@
         return matchSearch && matchCat;
       });
 
-      // 僅鎖定第一欄 (代碼) 的 CSS
-      const stickyCol1Header = "sticky left-0 z-20 bg-slate-900 border-r border-slate-800 shadow-[2px_0_5px_rgba(0,0,0,0.3)]";
-      const stickyCol1Body = "sticky left-0 z-10 bg-slate-900 border-r border-slate-800 shadow-[2px_0_5px_rgba(0,0,0,0.3)]";
+      // 調整第一欄寬度為 6.5em，並使用 px-2 減少左右留白
+      const stickyCol1Header = "sticky left-0 z-20 bg-slate-900 border-r border-slate-800 shadow-[2px_0_5px_rgba(0,0,0,0.3)] w-[4.8em] max-w-[4.8em] min-w-[4.8em] px-2 truncate";
+      const stickyCol1Body = "sticky left-0 z-10 bg-slate-900 border-r border-slate-800 shadow-[2px_0_5px_rgba(0,0,0,0.3)] w-[4.8em] max-w-[4.8em] min-w-[4.8em] px-2 truncate";
 
       // 1. 動態表頭
       const thead = document.getElementById('tableHead');
       if (currentTab === 1) {
         thead.innerHTML = `
           <tr>
-            <th class="px-4 py-3.5 ${stickyCol1Header}">代碼</th>
-            <th class="px-4 py-3.5">名稱</th>
+            <th class="py-3.5 ${stickyCol1Header}">名稱</th>
+            <th class="px-4 py-3.5">代碼</th>
             <th class="px-4 py-3.5">現價</th>
             <th class="px-4 py-3.5">現金股利</th>
             <th class="px-4 py-3.5">股票股利</th>
@@ -175,8 +173,8 @@
       } else {
         thead.innerHTML = `
           <tr>
-            <th class="px-4 py-3.5 ${stickyCol1Header}">代碼</th>
-            <th class="px-4 py-3.5">名稱</th>
+            <th class="py-3.5 ${stickyCol1Header}">名稱</th>
+            <th class="px-4 py-3.5">代碼</th>
             <th class="px-4 py-3.5">現價</th>
             <th class="px-4 py-3.5">240MA年線</th>
             <th class="px-4 py-3.5">年線乖離率</th>
@@ -207,11 +205,13 @@
         const formattedYield = formatPercent(item.annual_yield, true);
         const yieldColorClass = getTrendColorClass(formattedYield);
 
+        const stockName = item.name || '--';
+
         if (currentTab === 1) {
           return `
             <tr class="border-b border-slate-800 hover:bg-slate-800/50 transition-colors whitespace-nowrap">
-              <td class="px-4 py-3 font-bold text-white ${stickyCol1Body}">${item.symbol || '--'}</td>
-              <td class="px-4 py-3 text-slate-200 font-medium">${item.name || '--'}</td>
+              <td class="py-3 font-medium text-slate-200 ${stickyCol1Body}" title="${stockName}">${stockName}</td>
+              <td class="px-4 py-3 font-bold text-white">${item.symbol || '--'}</td>
               <td class="px-4 py-3 font-semibold text-white">${item.price || '--'}</td>
               <td class="px-4 py-3 text-amber-300">${item.cash_div || '0'}</td>
               <td class="px-4 py-3 text-amber-300">${item.stock_div || '0'}</td>
@@ -231,8 +231,8 @@
         } else {
           return `
             <tr class="border-b border-slate-800 hover:bg-slate-800/50 transition-colors whitespace-nowrap">
-              <td class="px-4 py-3 font-bold text-white ${stickyCol1Body}">${item.symbol || '--'}</td>
-              <td class="px-4 py-3 text-slate-200 font-medium">${item.name || '--'}</td>
+              <td class="py-3 font-medium text-slate-200 ${stickyCol1Body}" title="${stockName}">${stockName}</td>
+              <td class="px-4 py-3 font-bold text-white">${item.symbol || '--'}</td>
               <td class="px-4 py-3 font-semibold text-white">${item.price || '--'}</td>
               <td class="px-4 py-3 text-slate-300">${item.ma240 || '--'}</td>
               <td class="px-4 py-3 ${biasColorClass}">${formattedBias}</td>
