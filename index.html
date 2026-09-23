@@ -66,7 +66,7 @@
         </thead>
         <tbody id="stockTableBody">
           <tr>
-            <td colspan="14" class="text-center py-8 text-slate-500">資料載入中...</td>
+            <td colspan="15" class="text-center py-8 text-slate-500">資料載入中...</td>
           </tr>
         </tbody>
       </table>
@@ -215,13 +215,14 @@
             <th class="px-4 py-3.5">股本(億)</th>
             <th class="px-4 py-3.5">市值(億)</th>
             <th class="px-4 py-3.5">除息週期</th>
+            <th class="px-4 py-3.5">入帳週期</th>
             <th class="px-4 py-3.5">類別</th>
           </tr>`;
       }
 
       const tbody = document.getElementById('stockTableBody');
       if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="14" class="text-center py-8 text-slate-500">查無符合資料</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="15" class="text-center py-8 text-slate-500">查無符合資料</td></tr>`;
         return;
       }
 
@@ -285,7 +286,8 @@
               <td class="px-4 py-3 text-purple-300">${formatNumber(item.pe, 2)}</td>
               <td class="px-4 py-3">${formatNumber(item.capital, 2)}</td>
               <td class="px-4 py-3">${formatNumber(item.market_cap, 2)}</td>
-              <td class="px-4 py-3 text-slate-400">${item.frequency || '--'}</td>
+              <td class="px-4 py-3 text-slate-400">${item.dividend_cycle || '--'}</td>
+              <td class="px-4 py-3 text-slate-400">${item.payout_cycle || '--'}</td>
               <td class="px-4 py-3">
                 <span class="px-2.5 py-1 text-xs rounded-full font-medium inline-block ${tagClass}">
                   ${item.category || '個股'}
